@@ -13,5 +13,6 @@ class Fish(Animal):
 
 
 if __name__ == '__main__':
-    x = Fish()
-    y = copy(x)
+    x = Fish(name="x")
+    y = Fish(name="y")
+    t = Team([x, y])
