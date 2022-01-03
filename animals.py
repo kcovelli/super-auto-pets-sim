@@ -16,3 +16,6 @@ if __name__ == '__main__':
     x = Fish(name="x")
     y = Fish(name="y")
     t = Team([x, y])
+
+    state = GameState(t)
+    print(state)

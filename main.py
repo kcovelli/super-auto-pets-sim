@@ -1,9 +1,22 @@
 from __future__ import annotations  # fixes forward references in type hints
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, NewType
 from dataclasses import dataclass
 from copy import copy, deepcopy
 import random as rand
 
+LOGGING_LEVEL: int = 2
+""" For debugging
+
+    0 = print nothing
+    1 = don't print GameState after every resolution step
+    2 = print everything
+"""
+
+ActionFunc = NewType('ActionFunc', Callable[['GameState'], None])
+""" Custom type representing a function that does some action during state resolution """
+
+
+# TODO: will likely change this based on resolution implementation
 
 @dataclass
 class Animal:
@@ -125,7 +138,6 @@ class Team:
             friends = [None, None, None, None, None]
         self.friends: List[Optional[Animal]] = friends
         self.validate()
-        print(self)
 
     def __iter__(self):
         return self.friends.__iter__()
@@ -133,8 +145,11 @@ class Team:
     def __str__(self):
         s = "[ "
         for a in self:
-            s += f"{a} "
+            s += f"{'_____' if a is None else a} "
         return s + "]"
+
+    def __repr__(self):
+        return f"Team({self.friends})"
 
     def __copy__(self):
         raise NotImplementedError
@@ -145,7 +160,7 @@ class Team:
     def __len__(self):
         return len([i for i in self.friends if i is not None])
 
-    def resolve_event(self, f: Callable[[Animal, GameState], GameState], state: GameState):
+    def resolve_event(self, f: ActionFunc, state: GameState):
         """ calls the given event function on ever friend in this team"""
         for a in self.get_friends():
             f(a, state)
@@ -172,14 +187,77 @@ class Team:
 
 
 class GameState:
-    player_team: Team
-    """ Animals currently on your team """
+    """
+        A class used to represent a game state at any point, including states in the middle of being resolved
+        ...
 
-    opponent_team: Team
-    """ Animals currently on the opponent's team. Empty list when in shop phase """
+        Attributes
+        ----------
+        player_team: Team
+            Animals currently on your team
 
-    shop: List[Animal]  # TODO: change this when implementing food
-    """ Animals that are currently available in the shop. Empty list when in combat phase """
+        opponent_team: Team
+            Animals currently on the opponent's team
 
-    is_combat_phase: bool
-    """ whether the game is currently in the combat phase. If false then game is in the shop phase """
+        shop: List[Animal]  # TODO: change this type when implementing food
+            Animals and foods that are currently available in the shop. Empty list when in combat phase
+
+        is_combat_phase: bool
+            whether the game is currently in the combat phase. If False then game is in the shop phase
+
+        Methods
+        -------
+        resolve_queue:
+            processes the resolution_queue until it is empty, modifying this GameState, and possibly any Animals
+            in player_team and opponent_team, in the process
+
+        resolution_step:
+            perform only the top element of the resolution queue. This may or may not add more events to the resolution
+            queue, so it is not always the case that len(self.resolution_queue) before execution is less than
+            len(self.resolution_queue) after execution.
+        """
+
+    def __init__(self, player_team: Team, opponent_team: Team = None, is_combat_phase: bool = True,
+                 shop: List[Animal] = None):
+
+        if is_combat_phase and opponent_team is None:
+            opponent_team = Team()
+
+        self.player_team = player_team
+        self.opponent_team = opponent_team
+        self.is_combat_phase = is_combat_phase
+        self.shop = shop
+        self.resolution_queue: List[ActionFunc] = []
+
+    def __str__(self):
+        s = "============= COMBAT =============\n" if self.is_combat_phase else "============== SHOP ==============\n"
+        s += str(self.player_team) + "\n"
+        if self.is_combat_phase:
+            s += str(self.opponent_team) + "\n"
+        s += '\nResolution Queue:\n'
+        for f in self.resolution_queue:
+            s += f"\t{getattr(f, 'action_description', str(f))}\n"
+        s += '\n==================================\n'
+        return s
+
+    def resolve(self):
+        if len(self.resolution_queue) == 0:
+            return
+
+        num_iter = 10000
+        while len(self.resolution_queue) > 0 and num_iter > 0:
+            self.resolution_step()
+            self.player_team.validate()
+            self.opponent_team.validate()
+            num_iter -= 1
+
+        if num_iter <= 0:
+            raise Exception("Resolution did not complete after 10000 iterations. Possible infinite loop?")
+
+    def resolution_step(self):
+        f = self.resolution_queue.pop(0)
+        if LOGGING_LEVEL > 0:
+            print(f"Current ActionFunc: {getattr(f, 'action_description', str(f))}")
+        f(self)
+        if LOGGING_LEVEL > 1:
+            print(self)
