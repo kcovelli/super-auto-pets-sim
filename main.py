@@ -4,8 +4,7 @@ from typing import List, Callable, Optional, Union
 from dataclasses import dataclass
 from copy import copy
 
-
-LOGGING_LEVEL: int = 2
+LOGGING_LEVEL: int = 1
 """ 
 For debugging
 
@@ -52,6 +51,7 @@ class Animal:
 
     current_team: Team = None
     """ Reference to the team that this Animal is currently on. Modified in Team.__init__ TODO"""
+
     # TODO: add a Team.add_animal method which will also modify this
 
     def __post_init__(self):  # for convenience, set the default name of an Animal to the name of the subclass
@@ -98,13 +98,16 @@ class Animal:
                 return
 
             self.temp_health -= amnt
+            if LOGGING_LEVEL > 0:
+                print(f'{self.name} took {amnt} damage')
+
             if self.current_health <= 0:  # don't trigger on hurt effects if the Animal fainted
-                state.push_action(self.on_faint())
+                state.add_action(self.on_faint())
             else:
                 if not state.is_combat_phase and self.temp_health < 0:  # in shop phase damage is permanent
                     self.health += self.temp_health
                     self.temp_health = 0
-                state.push_action(self.on_hurt())
+                state.add_action(self.on_hurt())
 
         return do_damage
 
@@ -139,6 +142,9 @@ class Animal:
         """ Called in combat when this Animal is in the 2nd position, after an attack is resolved """
         return
 
+    def on_friend_summoned(self):
+        return
+
     # shop phase callbacks
     def on_shop_start(self) -> Optional[ActionFunc]:
         """ Called when the shop phase starts """
@@ -154,6 +160,9 @@ class Animal:
 
     def on_levelup(self) -> Optional[ActionFunc]:
         """ Called just before this Animal levels up """
+        return
+
+    def on_friend_bought(self):
         return
 
     def on_shop_end(self) -> Optional[ActionFunc]:
@@ -291,13 +300,13 @@ class GameState:
         s += '\nResolution Queue:\n'
         for f in self.resolution_queue:
             s += f"\t{f}\n"
-        s += '\n==================================\n'
         return s
 
-    def push_action(self, func: ActionFunc):
+    def add_action(self, func: ActionFunc):
         self.resolution_queue.append(func)
 
     def resolve(self):
+        """ Resolve the current resolution queue until it is empty. """
         if len(self.resolution_queue) == 0:
             return
 
@@ -312,12 +321,14 @@ class GameState:
             raise Exception("Resolution did not complete after 10000 iterations. Possible infinite loop?")
 
     def resolution_step(self):
+        """ resolve the first action in the resolution queue """
         f = self.resolution_queue.pop(0)
-        if LOGGING_LEVEL > 0:
-            print(f"Current ActionFunc: {f}")
-        f(self)
         if LOGGING_LEVEL > 1:
             print(self)
+        if LOGGING_LEVEL > 0:
+            print(f"Current ActionFunc: {f}")
+
+        f(self)
 
     def do_attack(self):
         """
@@ -328,4 +339,13 @@ class GameState:
             raise ValueError("GameState is not in combat phase")
 
         strong, weak = helpers.get_priority(self.player_team[0], self.opponent_team[0])
-        print(f"{strong=} {weak=}")
+        if LOGGING_LEVEL > 0:
+            print(f"{strong} attacking {weak}")
+
+        self.add_action(strong.take_damage(weak.attack))
+        self.add_action(weak.take_damage(strong.attack))
+
+        self.resolve()
+
+        if LOGGING_LEVEL > 0:
+            print(f"Attack finished: {strong}  {weak}")

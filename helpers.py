@@ -43,6 +43,9 @@ def get_priority(a1: Animal, a2: Animal) -> Tuple[Animal, Animal]:
     """
     When two Animals' abilities should be initiated at the same time, the animal with the higher attack goes
      first. If their attacks are tied then it is decided randomly
+
+     TODO: it might be the case that its total stats (i.e attack + health) that determines order, not just attack.
+      Investigate this
     """
     if a1.current_attack > a2.current_attack:
         return a1, a2
