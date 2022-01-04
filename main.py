@@ -1,33 +1,36 @@
 from __future__ import annotations  # fixes forward references in type hints
-from typing import List, Callable, Optional, NewType
+import helpers, random
+from typing import List, Callable, Optional, Union
 from dataclasses import dataclass
-from copy import copy, deepcopy
-import random as rand
+from copy import copy
+
 
 LOGGING_LEVEL: int = 2
-""" For debugging
+""" 
+For debugging
 
-    0 = print nothing
-    1 = don't print GameState after every resolution step
-    2 = print everything
+0 = print nothing
+1 = don't print GameState after every resolution step
+2 = print everything
 """
 
-ActionFunc = NewType('ActionFunc', Callable[['GameState'], None])
-""" Custom type representing a function that does some action during state resolution """
+ActionFunc = Callable[['GameState'], None]
+""" 
+Custom type representing a function that does some action during state resolution. ActionFuncs just modify
+the given GameState object to produce the "new" state, and do not return anything.
+"""
 
 
-# TODO: will likely change this based on resolution implementation
-
-@dataclass
+@dataclass(eq=False)  # it's important that two Animals are equal only if they are the same object
 class Animal:
-    name: str = 'Generic Animal'
+    name: str = 'Unspecified Animal'
     """ Name of this Animal """
 
     attack: int = 1
-    """ Base attack of this Animal """
+    """ Base attack of this Animal. Should be overridden in subclasses """
 
     health: int = 1
-    """ Base health of this Animal """
+    """ Default health of this Animal. Should be overridden in subclasses """
 
     temp_attack: int = 0
     """
@@ -37,7 +40,7 @@ class Animal:
 
     temp_health: int = 0
     """
-    Temporary attack of this Animal. In the shop phase this is any attack buffs that only last to the end of the
+    Temporary health of this Animal. In the shop phase this is any health buffs that only last to the end of the
     next combat. During combat this is where any damage the Animal sustains is tracked.
     """
 
@@ -47,20 +50,30 @@ class Animal:
     level: int = 1
     """ Determines how strong this Animal's ability is, ranges from 1-3 inclusive """
 
+    current_team: Team = None
+    """ Reference to the team that this Animal is currently on. Modified in Team.__init__ TODO"""
+    # TODO: add a Team.add_animal method which will also modify this
+
+    def __post_init__(self):  # for convenience, set the default name of an Animal to the name of the subclass
+        self.name = self.__class__.__name__
+
     def __str__(self):
         attack_str = f'{self.attack}' if self.temp_attack == 0 else f'({self.attack}+{self.temp_attack})'
         health_str = f'{self.health}' if self.temp_health == 0 else f'({self.health}+{self.temp_health})'
         return f"{self.name}:{attack_str}/{health_str}"
 
     def __copy__(self):
-        # I think this is fine even though PyCharm complains
+        # Instantiate a copy of this Animal. If self is a subclass of Animal, then this will instantiate that subclass,
+        # and not Animal itself. There's probably a better way to do this is fine even though PyCharm complains
         # noinspection PyArgumentList
         result = self.__class__(name=self.name, attack=self.attack, health=self.health)
         result.temp_attack, result.temp_health = self.temp_attack, self.temp_health
         return result
 
-    def __deepcopy__(self, memo={}):
-        # by default Animals have no mutable fields. If any subclass does then should override this
+    def __deepcopy__(self, memo=None):
+        if memo is None:
+            memo = {}
+        # by default Animals have no mutable fields. If any subclasses do, they should override this
         result = copy(self)
         memo[id(self)] = result
         return result
@@ -75,57 +88,75 @@ class Animal:
         """ :returns the total current health of this Animal """
         return self.health + self.temp_health
 
-    def take_damage(self, amnt: int):
+    def take_damage(self, amnt: int) -> Optional[ActionFunc]:
         """ :param amnt: the amount of damage taken """
-        self.temp_health -= amnt
-        # TODO: if in shop phase and `temp_health` goes below 0, need to modify `health`
 
-        # TODO: may remove this depending on how combat resolver is implemented
-        self.on_hurt()
-        if self.current_health <= 0:
-            self.on_faint()
+        def do_damage(state: GameState):
+            if amnt < 0:
+                raise ValueError(f"{self.name} tried to take negative damage")
+            if amnt == 0:
+                return
+
+            self.temp_health -= amnt
+            if self.current_health <= 0:  # don't trigger on hurt effects if the Animal fainted
+                state.push_action(self.on_faint())
+            else:
+                if not state.is_combat_phase and self.temp_health < 0:  # in shop phase damage is permanent
+                    self.health += self.temp_health
+                    self.temp_health = 0
+                state.push_action(self.on_hurt())
+
+        return do_damage
+
+    def temp_buff(self, a, h):
+        self.temp_attack += a
+        self.temp_health += h
+
+    def perma_buff(self, a, h):
+        self.attack += a
+        self.health += h
 
     # combat phase callbacks
-    def on_combat_start(self):
+    def on_combat_start(self) -> Optional[ActionFunc]:
         """ Called on each Animal in order of `current_attack` when combat starts """
         return
 
-    def before_attack(self):
+    def before_attack(self) -> Optional[ActionFunc]:
         """ Called just before this Animal's combat attack action is resolved """
         return
 
-    def on_hurt(self):
+    def on_hurt(self) -> Optional[ActionFunc]:
         """
         Called after this Animal takes damage. Note that it is possible for an Animal's `current_health` to decrease
         without taking damage, for example when targeted by a Skunk's start of combat ability.
         """
         return
 
-    def on_faint(self):
+    def on_faint(self) -> Optional[ActionFunc]:
         """ Called when current_health reaches 0 """
 
-    def on_friend_ahead_attack(self):
+    def on_friend_ahead_attack(self) -> Optional[ActionFunc]:
         """ Called in combat when this Animal is in the 2nd position, after an attack is resolved """
         return
 
     # shop phase callbacks
-    def on_shop_start(self):
+    def on_shop_start(self) -> Optional[ActionFunc]:
         """ Called when the shop phase starts """
         return
 
-    def on_buy(self):
+    def on_buy(self) -> Optional[ActionFunc]:
         """ Called when this Animal is bought from the store """
         return
 
-    def on_sell(self):
+    def on_sell(self) -> Optional[ActionFunc]:
         """ Called when this Animal is sold """
         return
 
-    def on_levelup(self):
+    def on_levelup(self) -> Optional[ActionFunc]:
         """ Called just before this Animal levels up """
         return
 
-    def on_shop_end(self):
+    def on_shop_end(self) -> Optional[ActionFunc]:
         """ Called when the shop phase ends """
         return
 
@@ -137,10 +168,32 @@ class Team:
         if friends is None:
             friends = [None, None, None, None, None]
         self.friends: List[Optional[Animal]] = friends
+        for f in self.friends:
+            if isinstance(f, Animal):
+                f.current_team = self
         self.validate()
 
     def __iter__(self):
         return self.friends.__iter__()
+
+    def __getitem__(self, item) -> Union[int, Optional[Animal]]:
+        """
+        If `item` is an int, returns the Animal in that position. Returns None if given position is empty
+         :raises KeyError if that position is empty
+         :raises IndexError if given int is greater than Team.max_team_size
+
+        If `item` is an Animal on the team, returns the index of that Animal (identical to self.index_of)
+         :raises KeyError if that Animal is not on this team
+        """
+        if isinstance(item, int):
+            if item >= Team.max_team_size:
+                raise IndexError(f'Given index {item} is out of bounds for maximum team size {Team.max_team_size}')
+            else:
+                return self.friends[item]
+        elif isinstance(item, Animal):
+            return self.index_of(item)
+        else:
+            raise TypeError('__getitem__ requires an Animal on this Team or an int')
 
     def __str__(self):
         s = "[ "
@@ -154,16 +207,19 @@ class Team:
     def __copy__(self):
         raise NotImplementedError
 
-    def __deepcopy__(self, memodict={}):
-        raise NotImplementedError
+    # def __deepcopy__(self, memodict=None):
+    #     if memodict is None:
+    #         memodict = {}
+    #     raise NotImplementedError
 
     def __len__(self):
         return len([i for i in self.friends if i is not None])
 
-    def resolve_event(self, f: ActionFunc, state: GameState):
-        """ calls the given event function on ever friend in this team"""
-        for a in self.get_friends():
-            f(a, state)
+    def index_of(self, target: Animal):
+        try:
+            return self.friends.index(target)
+        except ValueError:
+            raise KeyError(f"{target} is not on this Team")
 
     def validate(self):
         """ shifts all friends to front and pad back with None to ensure `len(self.friends) == Team.max_team_size`"""
@@ -179,11 +235,9 @@ class Team:
         """ :returns a list over the Animals of this team in order, not including any empty slots (list has no None) """
         return [x for x in self.friends if x is not None]
 
-    def get_random_friends(self) -> List[Animal]:
-        """ :returns an list of the Animals of this team in a random order """
-        lis = self.get_friends()
-        rand.shuffle(lis)
-        return lis
+    def get_random_friends(self, n: int) -> List[Animal]:
+        """ :returns `n` randomly selected Animals on this team in a random order"""
+        return random.sample(self.get_friends(), n)
 
 
 class GameState:
@@ -236,9 +290,12 @@ class GameState:
             s += str(self.opponent_team) + "\n"
         s += '\nResolution Queue:\n'
         for f in self.resolution_queue:
-            s += f"\t{getattr(f, 'action_description', str(f))}\n"
+            s += f"\t{f}\n"
         s += '\n==================================\n'
         return s
+
+    def push_action(self, func: ActionFunc):
+        self.resolution_queue.append(func)
 
     def resolve(self):
         if len(self.resolution_queue) == 0:
@@ -257,7 +314,18 @@ class GameState:
     def resolution_step(self):
         f = self.resolution_queue.pop(0)
         if LOGGING_LEVEL > 0:
-            print(f"Current ActionFunc: {getattr(f, 'action_description', str(f))}")
+            print(f"Current ActionFunc: {f}")
         f(self)
         if LOGGING_LEVEL > 1:
             print(self)
+
+    def do_attack(self):
+        """
+        First unit of player_team and first unit of opponent_team attack each other. Raises ValueError if
+        state is not in combat phase
+        """
+        if not self.is_combat_phase:
+            raise ValueError("GameState is not in combat phase")
+
+        strong, weak = helpers.get_priority(self.player_team[0], self.opponent_team[0])
+        print(f"{strong=} {weak=}")
