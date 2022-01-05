@@ -1,5 +1,4 @@
 from main import *
-from helpers import *
 
 
 @dataclass(eq=False)
@@ -18,9 +17,8 @@ class Ant(Animal):
     attack: int = 2
     health: int = 1
 
-    def on_faint(self) -> ActionFunc:
-        return lambda x: print("Ant fainted")
-        # return give_random_stats(2, 1, 1, self.current_team)
+    def on_faint(self) -> Optional[ActionFunc]:
+        return give_random_stats(2, 1, 1, self)
 
 
 @dataclass(eq=False)
@@ -38,14 +36,11 @@ class Pig(Animal):
         def refund_gold(state: GameState):
             print('This should refund some gold but is not implemented yet')
 
-        return refund_gold
-
-    def on_faint(self) -> ActionFunc:
-        return lambda x: print("Pig fainted")
+        return ActionFunc(refund_gold, "Do nothing", self)
 
 
 if __name__ == '__main__':
     t1 = Team([Pig(), Ant(), Sloth()])
-    t2 = Team([Ant(), Ant(), Sloth()])
+    t2 = Team([Ant(), Fish(), Sloth()])
     s = GameState(t1, t2)
     s.do_attack()

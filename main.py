@@ -1,7 +1,7 @@
 from __future__ import annotations  # fixes forward references in type hints
-import helpers, random
-from typing import List, Callable, Optional, Union
+from typing import Iterable, Tuple, List, Callable, Optional, Union
 from dataclasses import dataclass
+import random
 from copy import copy
 
 LOGGING_LEVEL: int = 1
@@ -12,12 +12,35 @@ For debugging
 1 = don't print GameState after every resolution step
 2 = print everything
 """
-
-ActionFunc = Callable[['GameState'], None]
-""" 
-Custom type representing a function that does some action during state resolution. ActionFuncs just modify
-the given GameState object to produce the "new" state, and do not return anything.
+DEFAULT_ACTIONS: bool = True
 """
+For debugging
+
+Whether functions in Animal that are not overridden by a subclass should return a dummy ActionFunc or None. When None
+is added to the resolution queue it is just skipped and nothing is printed, while the dummy ActionFunc would print 
+showing whether, and in what order, events were resolved. 
+"""
+
+class ActionFunc:
+    """
+    Custom type representing a function that does some action during state resolution. ActionFuncs just modify
+    the given GameState object to produce the "new" state, and do not return anything.
+    """
+
+    def __init__(self, f: Callable[['GameState'], None], description: str = "", source: Optional[Animal] = None):
+        self.f = f
+        self.description = description
+        self.source = source
+        self.trigger_name = ''
+
+    def __call__(self, *args, **kwargs):
+        self.f(*args, **kwargs)
+
+    def __str__(self):
+        return f"[{self.trigger_name}] {self.source.name}->{self.description}"
+
+    def __repr__(self):
+        return f"ActionFunc({repr(self.f)}, {repr(self.source)}, {repr(self.description)})"
 
 
 @dataclass(eq=False)  # it's important that two Animals are equal only if they are the same object
@@ -49,10 +72,8 @@ class Animal:
     level: int = 1
     """ Determines how strong this Animal's ability is, ranges from 1-3 inclusive """
 
-    current_team: Team = None
-    """ Reference to the team that this Animal is currently on. Modified in Team.__init__ TODO"""
-
-    # TODO: add a Team.add_animal method which will also modify this
+    current_team: Team = None  # TODO: add a Team.add_animal method which will also modify this
+    """ Reference to the team that this Animal is currently on. Modified in Team.__init__"""
 
     def __post_init__(self):  # for convenience, set the default name of an Animal to the name of the subclass
         self.name = self.__class__.__name__
@@ -91,25 +112,22 @@ class Animal:
     def take_damage(self, amnt: int) -> Optional[ActionFunc]:
         """ :param amnt: the amount of damage taken """
 
-        def do_damage(state: GameState):
+        def apply_damage(state: GameState):
             if amnt < 0:
                 raise ValueError(f"{self.name} tried to take negative damage")
             if amnt == 0:
                 return
 
             self.temp_health -= amnt
-            if LOGGING_LEVEL > 0:
-                print(f'{self.name} took {amnt} damage')
-
             if self.current_health <= 0:  # don't trigger on hurt effects if the Animal fainted
-                state.add_action(self.on_faint())
+                state.add_action(self.on_faint(), trigger_name='on_faint')
             else:
                 if not state.is_combat_phase and self.temp_health < 0:  # in shop phase damage is permanent
                     self.health += self.temp_health
                     self.temp_health = 0
-                state.add_action(self.on_hurt())
+                state.add_action(self.on_hurt(), trigger_name='on_faint')
 
-        return do_damage
+        return ActionFunc(apply_damage, f'Take {amnt} damage', self)
 
     def temp_buff(self, a, h):
         self.temp_attack += a
@@ -122,52 +140,53 @@ class Animal:
     # combat phase callbacks
     def on_combat_start(self) -> Optional[ActionFunc]:
         """ Called on each Animal in order of `current_attack` when combat starts """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def before_attack(self) -> Optional[ActionFunc]:
         """ Called just before this Animal's combat attack action is resolved """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_hurt(self) -> Optional[ActionFunc]:
         """
         Called after this Animal takes damage. Note that it is possible for an Animal's `current_health` to decrease
         without taking damage, for example when targeted by a Skunk's start of combat ability.
         """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_faint(self) -> Optional[ActionFunc]:
         """ Called when current_health reaches 0 """
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_friend_ahead_attack(self) -> Optional[ActionFunc]:
         """ Called in combat when this Animal is in the 2nd position, after an attack is resolved """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_friend_summoned(self):
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     # shop phase callbacks
     def on_shop_start(self) -> Optional[ActionFunc]:
         """ Called when the shop phase starts """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_buy(self) -> Optional[ActionFunc]:
         """ Called when this Animal is bought from the store """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_sell(self) -> Optional[ActionFunc]:
         """ Called when this Animal is sold """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_levelup(self) -> Optional[ActionFunc]:
         """ Called just before this Animal levels up """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_friend_bought(self):
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
     def on_shop_end(self) -> Optional[ActionFunc]:
         """ Called when the shop phase ends """
-        return
+        return do_nothing(self) if DEFAULT_ACTIONS else None
 
 
 class Team:
@@ -231,14 +250,16 @@ class Team:
             raise KeyError(f"{target} is not on this Team")
 
     def validate(self):
-        """ shifts all friends to front and pad back with None to ensure `len(self.friends) == Team.max_team_size`"""
+        """
+        shifts all friends to front and pad back with None to ensure `len(self.friends) == Team.max_team_size`,
+        and removes all friends with current_health <= 0
+        """
         # might be a more efficient way to do this but whatever
         self.friends = self.get_friends()
         if len(self.friends) > Team.max_team_size:
             raise ValueError(f"Team {self} has more than {Team.max_team_size} animals")
-        else:
-            self.friends = self.friends
-            self.friends += [None] * (Team.max_team_size - len(self.friends))
+        no_corpses = list(filter(lambda x: x.current_health > 0, self.friends))
+        self.friends = no_corpses + ([None] * (Team.max_team_size - len(self.friends)))
 
     def get_friends(self) -> List[Animal]:
         """ :returns a list over the Animals of this team in order, not including any empty slots (list has no None) """
@@ -302,7 +323,10 @@ class GameState:
             s += f"\t{f}\n"
         return s
 
-    def add_action(self, func: ActionFunc):
+    def add_action(self, func: ActionFunc, trigger_name: str = ''):
+        if func is None:
+            return
+        func.trigger_name = trigger_name
         self.resolution_queue.append(func)
 
     def resolve(self):
@@ -326,7 +350,7 @@ class GameState:
         if LOGGING_LEVEL > 1:
             print(self)
         if LOGGING_LEVEL > 0:
-            print(f"Current ActionFunc: {f}")
+            print(f"{f}")
 
         f(self)
 
@@ -338,14 +362,79 @@ class GameState:
         if not self.is_combat_phase:
             raise ValueError("GameState is not in combat phase")
 
-        strong, weak = helpers.get_priority(self.player_team[0], self.opponent_team[0])
+        strong, weak = get_priority(self.player_team[0], self.opponent_team[0])
         if LOGGING_LEVEL > 0:
             print(f"{strong} attacking {weak}")
 
-        self.add_action(strong.take_damage(weak.attack))
-        self.add_action(weak.take_damage(strong.attack))
+        self.add_action(strong.take_damage(weak.attack), trigger_name='do_attack')
+        self.add_action(weak.take_damage(strong.attack), trigger_name='do_attack')
 
         self.resolve()
 
         if LOGGING_LEVEL > 0:
             print(f"Attack finished: {strong}  {weak}")
+
+
+# ################################################# Helper Functions ################################################# # 
+
+def give_random_stats(attack: int, health: int, num: int, source: Animal) -> ActionFunc:
+    """ :returns an ActionFunc that gives `attack` and `health` to `num` random friends on the given Team"""
+
+    def rand_buff(state: GameState):
+        for animal in source.current_team.get_random_friends(num):
+            if state.is_combat_phase:
+                animal.temp_buff(attack, health)
+            else:
+                animal.perma_buff(attack, health)
+
+    return ActionFunc(rand_buff, f"Give {num} random friends +{attack}/+{health}", source)
+
+
+def give_stats_at_positions(attack, health, target_idxs: Iterable[int], source: Animal) -> ActionFunc:
+    """
+    :returns an ActionFunc that gives `attack` and `health` to the animals at positions `target_idxs` on the
+    given Team
+    """
+
+    team_idxs = list(target_idxs)
+
+    def fixed_buff(state: GameState):
+        for i in team_idxs:
+            animal = source.current_team[i]
+            if animal is not None:
+                if state.is_combat_phase:
+                    animal.temp_buff(attack, health)
+                else:
+                    animal.perma_buff(attack, health)
+
+    return ActionFunc(fixed_buff,
+                      f"Give friends at position{'s' if len(team_idxs) > 1 else ''} {team_idxs} +{attack}/+{health}",
+                      source)
+
+
+def get_priority(a1: Animal, a2: Animal) -> Tuple[Animal, Animal]:
+    """
+    When two Animals' abilities should be initiated at the same time, the animal with the higher attack goes
+     first. If their attacks are tied then it is decided randomly
+
+     TODO: it might be the case that its total stats (i.e attack + health) that determines order, not just attack.
+      Investigate this
+    """
+    if a1.current_attack > a2.current_attack:
+        return a1, a2
+    elif a1.current_attack < a2.current_attack:
+        return a2, a1
+    else:
+        if random.randint(0, 1):
+            return a1, a2
+        else:
+            return a2, a1
+
+
+def get_teams_priority(t1: Team, t2: Optional[Team] = None) -> List[Animal]:
+    all_animals = t1.get_friends() + (t2.get_friends() if t2 is not None else [])
+    return sorted(all_animals, key=lambda x: x.attack)
+
+
+def do_nothing(source):
+    return ActionFunc(lambda x: None, "Do Nothing", source)
