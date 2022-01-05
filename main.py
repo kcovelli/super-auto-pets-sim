@@ -21,6 +21,7 @@ is added to the resolution queue it is just skipped and nothing is printed, whil
 showing whether, and in what order, events were resolved. 
 """
 
+
 class ActionFunc:
     """
     Custom type representing a function that does some action during state resolution. ActionFuncs just modify
@@ -98,6 +99,17 @@ class Animal:
         result = copy(self)
         memo[id(self)] = result
         return result
+
+    def __eq__(self, other):
+        if type(self) != type(other):
+            return False
+        conds = (self.attack == other.attack,
+                 self.health == other.health,
+                 self.temp_attack == other.temp_attack,
+                 self.temp_health == other.temp_health,
+                 self.rank == other.rank,
+                 self.level == other.level)
+        return all(conds)
 
     @property
     def current_attack(self):
@@ -233,7 +245,7 @@ class Team:
         return f"Team({self.friends})"
 
     def __copy__(self):
-        raise NotImplementedError
+        raise NotImplementedError  # TODO: implement
 
     # def __deepcopy__(self, memodict=None):
     #     if memodict is None:
@@ -242,6 +254,19 @@ class Team:
 
     def __len__(self):
         return len([i for i in self.friends if i is not None])
+
+    def __eq__(self, other):
+        if not isinstance(other, Iterable):
+            return False
+        else:
+            t1, t2 = list(self), list(other)
+            if len(t1) != len(t2):
+                return False
+
+            for a1, a2 in zip(list(self), list(other)):
+                if a1 != a2:
+                    return False
+            return True
 
     def index_of(self, target: Animal):
         try:
