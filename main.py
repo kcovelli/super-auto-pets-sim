@@ -1,5 +1,5 @@
 from __future__ import annotations  # fixes forward references in type hints
-from typing import Iterable, Tuple, List, Callable, Optional, Union
+from typing import Iterable, Tuple, List, Callable, Optional, Union, get_type_hints
 from dataclasses import dataclass
 import random
 from copy import copy, deepcopy
@@ -32,36 +32,44 @@ class ActionFunc:
     """
 
     def __init__(self, f: Callable[['GameState'], None], description: str = "", source: Optional[Animal] = None):
-        self.f: Callable[['GameState'], None] = f
+        if not isinstance(f, Callable):
+            raise ValueError('Given function must be callable')
+
+        self._f: Callable[['GameState'], None] = f
         self.description = description
         self.source = source
         self.trigger_name = ''
 
     def __call__(self, *args, **kwargs):
-        self.f(*args, **kwargs)
+        self._f(*args, **kwargs)
 
     def __str__(self):
-        return f"[{self.trigger_name}] {self.source.name}->{self.description}"
+        return f"[{self.trigger_name}] " + \
+               f"{self.source.name if self.source is not None and isinstance(self.source, Animal) else ''}" + \
+               f"->{self.description}"
 
     def __repr__(self):
-        return f"ActionFunc({repr(self.f)}, {repr(self.source)}, {repr(self.description)})"
+        return f"ActionFunc({repr(self._f)}, {repr(self.source)}, {repr(self.description)})"
 
     def __eq__(self, other):
         if isinstance(other, ActionFunc):
             # don't really care if description or trigger_name are different. mostly just for debugging
-            return self._f_eq(other.f) and self.source == other.source
-        elif isinstance(other, Callable):
-            return self._f_eq(other)
+            return self._f_eq(other._f) and self.source is other.source
 
     def _f_eq(self, other):
         if not isinstance(other, Callable):
             return False
-        conds = (self.f.__code__.co_code == other.__code__.co_code,
-                 self.f.__code__.co_argcount == other.__code__.co_argcount == 1,
-                 self.f.__code__.co_code == other.__code__.co_code,
-                all([i==j for i, j in zip(self.f.__closure__, other.__closure__)])
+        if self._f.__closure__ is None and other.__closure__ is not None or \
+                self._f.__closure__ is not None and other.__closure__ is None:
+            return False
+        conds = (self._f.__code__.co_code == other.__code__.co_code,
+                 self._f.__code__.co_argcount == other.__code__.co_argcount == 1,
+                 self._f.__code__.co_code == other.__code__.co_code,
                  )
-        return all(conds)
+        same_closure = (self._f.__closure__ is None and other.__closure__ is None) or \
+                       all([i == j for i, j in zip(self._f.__closure__, other.__closure__)])
+
+        return all(conds) and same_closure
 
 
 @dc()

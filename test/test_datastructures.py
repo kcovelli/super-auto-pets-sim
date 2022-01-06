@@ -223,3 +223,98 @@ def test_seeded_random_selection():
     assert t1.get_random_friends(3) == [Ant(name='A1'), Ant(name='A2'), Sloth(name='S1')]
     assert t1.get_random_friends(1) == [Ant(name='A1')]
     assert t1.get_random_friends(0) == []
+
+
+# ActionFunc
+def test_actionfunc_init():
+    af = ActionFunc(lambda x: None)
+    assert af.description == ''
+    assert af.source is None
+    af = ActionFunc(lambda x: None, "asd", Fish())
+    assert af.description == 'asd'
+    assert af.source == Fish()
+
+
+def test_actionfunc_str():
+    af = ActionFunc(lambda x: None)
+    assert str(af) == '[] ->'
+    af = ActionFunc(lambda x: None, "asd")
+    assert str(af) == '[] ->asd'
+    af = ActionFunc(lambda x: None, "asd", Fish())
+    assert str(af) == '[] Fish->asd'
+    af.trigger_name = 'test_actionfunc_str'
+    assert str(af) == '[test_actionfunc_str] Fish->asd'
+
+
+def test_actionfunc_f_eq():
+    af1 = give_random_stats(1, 1, 1, Fish())
+    af2 = give_random_stats(1, 1, 1, Fish())
+    assert af1._f_eq(af2._f)
+    af2 = give_random_stats(1, 1, 1, Ant())
+    assert not af1._f_eq(af2._f)
+    af2 = give_random_stats(2, 1, 1, Fish())
+    assert not af1._f_eq(af2._f)
+    af2 = give_random_stats(2, 2, 2, Ant())
+    assert not af1._f_eq(af2._f)
+
+    af = ActionFunc(lambda x: None)
+    assert af._f_eq(lambda y: None)
+    assert not af._f_eq(lambda y: y)
+    assert not af._f_eq(lambda: None)
+    assert not af._f_eq(lambda: Fish())
+
+    af1 = ActionFunc(lambda x: None, source=Fish())
+    af2 = ActionFunc(lambda x: None, source=Ant())
+    assert af1._f_eq(af2._f)
+
+    af1 = give_random_stats(1, 1, 1, Fish())
+    af2 = give_stats_at_positions(1, 1, [1], Fish())
+    assert not af1._f_eq(af2._f)
+
+
+def test_actionfunc_eq():
+    af1 = give_random_stats(1, 1, 1, f := Fish())
+    af2 = give_random_stats(1, 1, 1, f)
+    assert af1 == af2
+    af2 = give_random_stats(1, 1, 1, Ant())
+    assert af1 != af2
+    af2 = give_random_stats(1, 1, 1, Fish())
+    assert af1 != af2
+    af2 = give_random_stats(2, 1, 1, f)
+    assert af1 != af2
+    af2 = give_random_stats(2, 2, 2, Ant())
+    assert af1 != af2
+
+    af1 = ActionFunc(lambda x: None)
+    assert af1 == ActionFunc(lambda y: None)
+    assert af1 != ActionFunc(lambda y: y)
+    assert af1 != ActionFunc(lambda: None)
+    assert af1 != ActionFunc((lambda: Fish()))
+
+    af1 = ActionFunc(lambda x: None, source=Fish())
+    af2 = ActionFunc(lambda x: None, source=Ant())
+    assert af1 != af2
+
+    af1 = give_random_stats(1, 1, 1, Fish())
+    af2 = give_stats_at_positions(1, 1, [1], Fish())
+    assert af1 != af2._f
+
+    assert example_actionfunc_1(1, 1) == example_actionfunc_2(1, 1, "hello")
+
+
+def example_actionfunc_1(a: int, b: int):
+    def f1(state: GameState):
+        state.player_team[0].attack = a
+        state.player_team[0].health = b
+
+    return ActionFunc(f1)
+
+
+def example_actionfunc_2(a: int, b: int, c: str):
+    print(c)
+
+    def f2(state: GameState):
+        state.player_team[0].attack = a
+        state.player_team[0].health = b
+
+    return ActionFunc(f2)
