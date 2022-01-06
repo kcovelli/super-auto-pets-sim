@@ -272,7 +272,8 @@ class Team:
         if not isinstance(other, Iterable):
             return False
         else:
-            t1, t2 = list(self), list(other)
+            t1 = list(self.get_friends())
+            t2 = list(other.get_friends()) if isinstance(other, Team) else list(other)
             if len(t1) != len(t2):
                 return False
 
@@ -282,10 +283,10 @@ class Team:
             return True
 
     def index_of(self, target: Animal):
-        try:
-            return self.friends.index(target)
-        except ValueError:
-            raise KeyError(f"{target} is not on this Team")
+        for i, f in enumerate(self.friends):
+            if target is f:
+                return i
+        raise KeyError(f"{target} is not on this Team")
 
     def validate(self):
         """

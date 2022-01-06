@@ -132,21 +132,28 @@ def test_team_neq():
     t1 = Team([Fish(), Sloth(), Ant()])
     t2 = Team([Ant(), Sloth(), Ant()])
     assert t1 != t2
-    t1 = Team([None, None, None, None, None])
-    t2 = Team()
-    assert t1 == t2
-    t1 = Team([None, None, None])
-    t2 = Team([])
-    assert t1 == t2
+    assert t1 != 10
+    t1 = Team([Sloth(), Ant()])
+    t2 = Team([Ant(), Sloth(), Ant()])
+    assert t1 != t2
 
+def test_team_get():
+    t = Team([f:=Fish(), Ant(), None, Fish(), a:=Ant()])
+    assert t[0] == f
+    assert t[f] == 0
+    assert t[0] is not Fish()
+    assert t[-2] == a
+    assert t[a] == 3
+    assert t[-2] is not Ant()
 
-def test_team_get_animal_by_index():
-    pass
-
-
-def test_team_get_index_by_animal():
-    pass
-
+def test_team_get_fail():
+    t = Team([f := Fish(), Sloth(), None, Fish(), Ant()])
+    with pytest.raises(IndexError):
+        assert not isinstance(t[100], Animal)
+    with pytest.raises(TypeError):
+        assert not isinstance(t["Fish"], Animal)
+    with pytest.raises(KeyError):
+        assert not t[Sloth()] > 0
 
 def test_team_shallow_copy():
     pass
