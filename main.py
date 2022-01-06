@@ -32,7 +32,7 @@ class ActionFunc:
     """
 
     def __init__(self, f: Callable[['GameState'], None], description: str = "", source: Optional[Animal] = None):
-        self.f = f
+        self.f: Callable[['GameState'], None] = f
         self.description = description
         self.source = source
         self.trigger_name = ''
@@ -45,6 +45,23 @@ class ActionFunc:
 
     def __repr__(self):
         return f"ActionFunc({repr(self.f)}, {repr(self.source)}, {repr(self.description)})"
+
+    def __eq__(self, other):
+        if isinstance(other, ActionFunc):
+            # don't really care if description or trigger_name are different. mostly just for debugging
+            return self._f_eq(other.f) and self.source == other.source
+        elif isinstance(other, Callable):
+            return self._f_eq(other)
+
+    def _f_eq(self, other):
+        if not isinstance(other, Callable):
+            return False
+        conds = (self.f.__code__.co_code == other.__code__.co_code,
+                 self.f.__code__.co_argcount == other.__code__.co_argcount == 1,
+                 self.f.__code__.co_code == other.__code__.co_code,
+                all([i==j for i, j in zip(self.f.__closure__, other.__closure__)])
+                 )
+        return all(conds)
 
 
 @dc()
