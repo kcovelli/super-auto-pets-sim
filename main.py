@@ -2,7 +2,7 @@ from __future__ import annotations  # fixes forward references in type hints
 from typing import Iterable, Tuple, List, Callable, Optional, Union
 from dataclasses import dataclass
 import random
-from copy import copy
+from copy import copy, deepcopy
 
 LOGGING_LEVEL: int = 1
 """ 
@@ -101,8 +101,6 @@ class Animal:
         return result
 
     def __deepcopy__(self, memo=None):
-        if memo is None:
-            memo = {}
         # by default Animals have no mutable fields. If any subclasses do, they should override this
         result = copy(self)
         memo[id(self)] = result
@@ -258,12 +256,10 @@ class Team:
         return f"Team({self.friends})"
 
     def __copy__(self):
-        raise NotImplementedError  # TODO: implement
+        return Team(copy(self.friends))
 
-    # def __deepcopy__(self, memodict=None):
-    #     if memodict is None:
-    #         memodict = {}
-    #     raise NotImplementedError
+    def __deepcopy__(self, memodict=None):
+        return Team(deepcopy(self.friends))
 
     def __len__(self):
         return len([i for i in self.friends if i is not None])
@@ -274,6 +270,7 @@ class Team:
         else:
             t1 = list(self.get_friends())
             t2 = list(other.get_friends()) if isinstance(other, Team) else list(other)
+            t2 = [i for i in t2 if i is not None]
             if len(t1) != len(t2):
                 return False
 

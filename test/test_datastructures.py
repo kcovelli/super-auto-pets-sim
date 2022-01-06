@@ -137,14 +137,17 @@ def test_team_neq():
     t2 = Team([Ant(), Sloth(), Ant()])
     assert t1 != t2
 
+
 def test_team_get():
-    t = Team([f:=Fish(), Ant(), None, Fish(), a:=Ant()])
+    t = Team([f := Fish(), Ant(), None, Fish(), a := Ant()])
     assert t[0] == f
     assert t[f] == 0
     assert t[0] is not Fish()
     assert t[-2] == a
     assert t[a] == 3
     assert t[-2] is not Ant()
+    assert t[-1] is None
+
 
 def test_team_get_fail():
     t = Team([f := Fish(), Sloth(), None, Fish(), Ant()])
@@ -155,33 +158,68 @@ def test_team_get_fail():
     with pytest.raises(KeyError):
         assert not t[Sloth()] > 0
 
+
 def test_team_shallow_copy():
-    pass
+    t1 = Team([Fish(), Sloth(), None, Fish(), Ant()])
+    t2 = copy(t1)
+    for x, y in zip(t1, t2):
+        assert x == y
+        assert x is y
 
 
 def test_team_deep_copy():
-    pass
+    t1 = Team([Fish(), Sloth(), None, Fish(), Ant()])
+    t2 = deepcopy(t1)
+    for x, y in zip(t1, t2):
+        assert x == y
+        assert (x is not y) or (x is None and y is None)
 
 
 def test_team_validate_empty():
-    pass
+    t = Team()
+    t.validate()
+    assert t.friends == [None, None, None, None, None]
 
 
 def test_team_validate_all_dead():
-    pass
+    t1 = Team([Fish(temp_health=-3), Sloth(temp_health=-1), None, Fish(temp_health=-10), Ant(temp_health=-1000)])
+    t1.validate()
+    assert t1.friends == [None, None, None, None, None]
 
 
 def test_team_validate_holes():
-    pass
-
-
-def test_team_validate_dead_and_holes():
-    pass
+    t1 = Team([None, Sloth(), None, Fish(), Ant()])
+    t1.validate()
+    assert t1.friends == [Sloth(), Fish(), Ant(), None, None]
 
 
 def test_team_validate_valid():
-    pass
+    t1 = Team([Sloth(), Fish(), Ant(), None, None])
+    t1.validate()
+    assert t1.friends == [Sloth(), Fish(), Ant(), None, None]
+    t1 = Team([Sloth(), Fish(), Ant()])
+    t1.validate()
+    assert t1.friends == [Sloth(), Fish(), Ant(), None, None]
+
+
+def test_team_validate_invalid():
+    with pytest.raises(ValueError):
+        t1 = Team([Sloth(), Fish(), Ant(), Ant(), Sloth()])
+        t1.friends += [Fish()]
+        t1.validate()
+
+
+def test_team_repr_and_str():
+    # these might change later so this test is just for Coverage lol. doesn't matter too much anyway
+    t = Team()
+    assert isinstance(str(t), str)
+    assert isinstance(repr(t), str)
 
 
 def test_seeded_random_selection():
-    pass
+    t1 = Team([Sloth(name='S1'), Fish(), Ant(name='A1'), Ant(name='A2'), Sloth(name='S2')])
+    random.seed(12345)
+    assert t1.get_random_friends(5) == [Ant(name='A2'), Sloth(name='S1'), Fish(), Ant(name='A1'), Sloth(name='S2')]
+    assert t1.get_random_friends(3) == [Ant(name='A1'), Ant(name='A2'), Sloth(name='S1')]
+    assert t1.get_random_friends(1) == [Ant(name='A1')]
+    assert t1.get_random_friends(0) == []
