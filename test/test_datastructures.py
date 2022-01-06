@@ -300,6 +300,7 @@ def test_actionfunc_eq():
     assert af1 != af2._f
 
     assert example_actionfunc_1(1, 1) == example_actionfunc_2(1, 1, "hello")
+    assert example_actionfunc_1(1, 1) != example_actionfunc_3(1, 1)
 
 
 def example_actionfunc_1(a: int, b: int):
@@ -316,5 +317,13 @@ def example_actionfunc_2(a: int, b: int, c: str):
     def f2(state: GameState):
         state.player_team[0].attack = a
         state.player_team[0].health = b
+
+    return ActionFunc(f2)
+
+
+def example_actionfunc_3(a: int, b: int):
+    def f2(state: GameState):
+        state.player_team[0].health = b
+        state.player_team[0].attack = a
 
     return ActionFunc(f2)
