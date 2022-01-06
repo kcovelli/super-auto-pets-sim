@@ -1,7 +1,7 @@
 from main import *
 
 
-@dataclass()
+@dataclass(eq=False)
 class Fish(Animal):
     attack: int = 2
     health: int = 3
@@ -12,7 +12,7 @@ class Fish(Animal):
         return
 
 
-@dataclass()
+@dataclass(eq=False)
 class Ant(Animal):
     attack: int = 2
     health: int = 1
@@ -21,13 +21,13 @@ class Ant(Animal):
         return give_random_stats(2, 1, 1, self)
 
 
-@dataclass()
+@dataclass(eq=False)
 class Sloth(Animal):
     attack: int = 1
     health: int = 1
 
 
-@dataclass()
+@dataclass(eq=False)
 class Pig(Animal):
     attack: int = 3
     health: int = 1

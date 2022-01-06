@@ -46,7 +46,7 @@ class ActionFunc:
 
 @dataclass(eq=False)  # it's important that two Animals are equal only if they are the same object
 class Animal:
-    name: str = 'Unspecified Animal'
+    name: str = None
     """ Name of this Animal """
 
     attack: int = 1
@@ -77,7 +77,8 @@ class Animal:
     """ Reference to the team that this Animal is currently on. Modified in Team.__init__"""
 
     def __post_init__(self):  # for convenience, set the default name of an Animal to the name of the subclass
-        self.name = self.__class__.__name__
+        if self.name is None:
+            self.name = self.__class__.__name__
 
     def __str__(self):
         attack_str = f'{self.attack}' if self.temp_attack == 0 else f'({self.attack}+{self.temp_attack})'
