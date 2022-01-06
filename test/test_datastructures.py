@@ -39,7 +39,7 @@ def test_animals_neq():
     a1, f1 = Ant(), Fish()
     assert a1 != f1
     assert a1 is not f1
-    a2 = Ant(name='a')
+    a2 = Ant()
     assert a1 == a2
     a2.temp_buff(1, 2)
     assert a1 != a2
@@ -83,17 +83,61 @@ def test_animal_str():
     f.temp_buff(10, -10)
     assert str(f) == 'Jeremy:(2+10)/3'
 
+
 # class Team
 def test_team_empty_init():
-    pass
+    t = Team()
+    assert t.friends == [None, None, None, None, None]
 
 
 def test_team_partial_init():
-    pass
+    t = Team([Ant(), Fish()])
+    assert t.friends == [Ant(), Fish(), None, None, None]
 
 
 def test_team_full_init():
-    pass
+    t = Team([Ant(), Fish(), Sloth(), Fish(), Ant()])
+    assert t.friends == [Ant(), Fish(), Sloth(), Fish(), Ant()]
+
+
+def test_team_bad_init():
+    with pytest.raises(ValueError):
+        Team([Ant(), Ant(), Ant(), Ant(), Ant(), Ant()])
+    Team([None, None, None, None, None, None])
+    with pytest.raises(ValueError):
+        Team([1, 2, 3, 4, 5])
+    with pytest.raises(ValueError):
+        Team([Fish(), Ant(), None, Team()])
+
+
+def test_team_eq():
+    t1 = Team([Ant(), Fish(), Sloth(), Fish(), Ant()])
+    t2 = Team([Ant(), Fish(), Sloth(), Fish(), Ant()])
+    assert t1 == t2
+    t1 = Team([Ant(), None, Sloth(), None, Ant()])
+    t2 = Team([Ant(), Sloth(), Ant()])
+    assert t1 == t2
+    t1 = Team([None, None, None, None, None])
+    t2 = Team()
+    assert t1 == t2
+    t1 = Team([None, None, None])
+    t2 = Team([])
+    assert t1 == t2
+
+
+def test_team_neq():
+    t1 = Team([Fish(), Ant(), Sloth(), Fish(), Ant()])
+    t2 = Team([Ant(), Fish(), Sloth(), Fish(), Ant()])
+    assert t1 != t2
+    t1 = Team([Fish(), Sloth(), Ant()])
+    t2 = Team([Ant(), Sloth(), Ant()])
+    assert t1 != t2
+    t1 = Team([None, None, None, None, None])
+    t2 = Team()
+    assert t1 == t2
+    t1 = Team([None, None, None])
+    t2 = Team([])
+    assert t1 == t2
 
 
 def test_team_get_animal_by_index():
@@ -101,14 +145,6 @@ def test_team_get_animal_by_index():
 
 
 def test_team_get_index_by_animal():
-    pass
-
-
-def test_team_eq():
-    pass
-
-
-def test_team_neq():
     pass
 
 

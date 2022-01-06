@@ -21,6 +21,9 @@ is added to the resolution queue it is just skipped and nothing is printed, whil
 showing whether, and in what order, events were resolved. 
 """
 
+# alias for data class decorator since every subclass of Animal should use it with the same params
+dc = lambda: dataclass(repr=False, eq=False)
+
 
 class ActionFunc:
     """
@@ -44,7 +47,7 @@ class ActionFunc:
         return f"ActionFunc({repr(self.f)}, {repr(self.source)}, {repr(self.description)})"
 
 
-@dataclass(eq=False)  # it's important that two Animals are equal only if they are the same object
+@dc()
 class Animal:
     name: str = None
     """ Name of this Animal """
@@ -85,6 +88,10 @@ class Animal:
         health_str = f'{self.health}' if self.temp_health == 0 else f'({self.health}+{self.temp_health})'
         return f"{self.name}:{attack_str}/{health_str}"
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.name}, {self.attack}, {self.health}, {self.temp_attack}, ' + \
+               f'{self.temp_health}, {self.rank}, {self.level}, team_id={id(self.current_team)})'
+
     def __copy__(self):
         # Instantiate a copy of this Animal. If self is a subclass of Animal, then this will instantiate that subclass,
         # and not Animal itself. There's probably a better way to do this is fine even though PyCharm complains
@@ -104,7 +111,8 @@ class Animal:
     def __eq__(self, other):
         if type(self) != type(other):
             return False
-        conds = (self.attack == other.attack,
+        conds = (self.name == other.name,
+                 self.attack == other.attack,
                  self.health == other.health,
                  self.temp_attack == other.temp_attack,
                  self.temp_health == other.temp_health,
@@ -208,6 +216,10 @@ class Team:
     def __init__(self, friends: List[Optional[Animal]] = None):
         if friends is None:
             friends = [None, None, None, None, None]
+        if len(filtered := [f for f in friends if f is not None]) > Team.max_team_size:
+            raise ValueError(f"Too many friends to init ({filtered} > {Team.max_team_size})")
+        if not all([isinstance(a, Animal) or a is None for a in friends]):
+            raise ValueError(f"Team must only contain Animals or None")
         self.friends: List[Optional[Animal]] = friends
         for f in self.friends:
             if isinstance(f, Animal):
