@@ -1,5 +1,5 @@
 from __future__ import annotations  # fixes forward references in type hints
-from typing import Iterable, Tuple, List, Callable, Optional, Union, get_type_hints
+from typing import Iterable, Tuple, List, Callable, Optional, Type, get_type_hints, Union
 from dataclasses import dataclass
 import random
 from copy import copy, deepcopy
@@ -23,6 +23,8 @@ showing whether, and in what order, events were resolved.
 
 # alias for data class decorator since every subclass of Animal should use it with the same params
 dc = lambda: dataclass(repr=False, eq=False)
+
+TeamInitType = Iterable[Optional["Animal"]]
 
 
 class ActionFunc:
@@ -55,6 +57,7 @@ class ActionFunc:
         if isinstance(other, ActionFunc):
             # don't really care if description or trigger_name are different. mostly just for debugging
             return self._f_eq(other._f) and self.source is other.source
+        return False
 
     def _f_eq(self, other):
         if not isinstance(other, Callable):
@@ -236,10 +239,12 @@ class Animal:
 class Team:
     max_team_size: int = 5
 
-    def __init__(self, friends: List[Optional[Animal]] = None):
+    def __init__(self, friends: TeamInitType = None):
         if friends is None:
             friends = [None, None, None, None, None]
-        if len(filtered := [f for f in friends if f is not None]) > Team.max_team_size:
+        if not isinstance(friends, Iterable):
+            raise TypeError(f"friends must be Iterable")
+        if (filtered := len([f for f in friends if f is not None])) > Team.max_team_size:
             raise ValueError(f"Too many friends to init ({filtered} > {Team.max_team_size})")
         if not all([isinstance(a, Animal) or a is None for a in friends]):
             raise ValueError(f"Team must only contain Animals or None")
@@ -362,11 +367,23 @@ class GameState:
             len(self.resolution_queue) after execution.
         """
 
-    def __init__(self, player_team: Team, opponent_team: Team = None, is_combat_phase: bool = True,
+    def __init__(self, player_team: TeamInitType, opponent_team: Optional[TeamInitType] = None,
+                 is_combat_phase: bool = True,
                  shop: List[Animal] = None):
 
         if is_combat_phase and opponent_team is None:
             opponent_team = Team()
+        elif not isinstance(opponent_team, Team):
+            if isinstance(opponent_team, Iterable):
+                opponent_team = Team(opponent_team)
+            else:
+                raise ValueError("opponent_team must be Iterable")
+
+        if not isinstance(player_team, Team):
+            if isinstance(player_team, Iterable):
+                player_team = Team(player_team)
+            else:
+                raise ValueError("player_team must be Iterable")
 
         self.player_team = player_team
         self.opponent_team = opponent_team

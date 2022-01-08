@@ -108,6 +108,8 @@ def test_team_bad_init():
         Team([1, 2, 3, 4, 5])
     with pytest.raises(ValueError):
         Team([Fish(), Ant(), None, Team()])
+    with pytest.raises(TypeError):
+        Team(10)
 
 
 def test_team_eq():
