@@ -202,7 +202,9 @@ class Animal:
 
     def on_faint(self) -> Optional[ActionFunc]:
         """ Called when current_health reaches 0 """
-        return do_nothing(self) if DEFAULT_ACTIONS else None
+        def remove_corpse(state: GameState):
+            self.current_team[self] = None
+        return ActionFunc(remove_corpse, description=f'Remove corpse of {self.name}', source=self)
 
     def on_friend_ahead_attack(self) -> Optional[ActionFunc]:
         """ Called in combat when this Animal is in the 2nd position, after an attack is resolved """
@@ -274,7 +276,33 @@ class Team:
         elif isinstance(item, Animal):
             return self.index_of(item)
         else:
-            raise TypeError('__getitem__ requires an Animal on this Team or an int')
+            raise TypeError('__getitem__ requires an Animal on this Team, or an int')
+
+    def __setitem__(self, key, value):
+        """
+        If `item` is an int, returns the Animal in that position. Returns None if given position is empty
+         :raises KeyError if that position is empty
+         :raises IndexError if given int is greater than Team.max_team_size
+
+        If `item` is an Animal on the team, returns the index of that Animal (identical to self.index_of)
+         :raises KeyError if that Animal is not on this team
+        """
+        if not (isinstance(value, Animal) or value is None):
+            raise ValueError(f"{value} must be an Animal or None")
+        if isinstance(key, int):
+            if key >= Team.max_team_size:
+                raise IndexError(f'Given index {key} is out of bounds for maximum team size {Team.max_team_size}')
+            else:
+                self.friends[key] = value
+        elif isinstance(key, Animal):
+            try:
+                i = self.index_of(key)
+                self.friends[i] = value
+            except KeyError:
+                raise KeyError(f'{key} is not on this team')
+        else:
+            raise TypeError('key for __setitem__ requires an Animal on this Team, or an int')
+        self.validate()
 
     def __str__(self):
         s = "[ "

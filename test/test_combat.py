@@ -20,6 +20,3 @@ def test_gamestate_bad_init():
         state = GameState(Fish(), [Sloth(), Ant()])
     with pytest.raises(ValueError):
         state = GameState([Fish()], Sloth())
-
-
-

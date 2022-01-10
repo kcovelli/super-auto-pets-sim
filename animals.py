@@ -1,4 +1,4 @@
-from main import *
+from data_structures import *
 
 
 @dc()

@@ -161,6 +161,37 @@ def test_team_get_fail():
         assert not t[Sloth()] > 0
 
 
+def test_team_set():
+    t = Team([Fish(), Ant(), None, Fish(), Ant()])
+    t[0] = None
+    assert t == Team([Ant(), Fish(), Ant()])
+    t[1] = Sloth()
+    assert t == Team([Ant(), Sloth(), Ant()])
+    t[3] = Fish()
+    assert t == Team([Ant(), Sloth(), Ant(), Fish()])
+    t[-1] = Sloth()
+    assert t == Team([Ant(), Sloth(), Ant(), Fish(), Sloth()])
+    t[-3] = None
+    assert t == Team([Ant(), Sloth(), None, Fish(), Sloth()])
+    f = Fish()
+    t[0] = f
+    assert t[f] == 0
+    t[f] = Sloth()
+    assert t == Team([Sloth(), Sloth(), Fish(), Sloth()])
+
+
+def test_team_set_fail():
+    t = Team([Fish(), Sloth(), None, Fish(), Ant()])
+    with pytest.raises(IndexError):
+        t[100] = Fish()
+    with pytest.raises(TypeError):
+        t["Fish"] = Fish()
+    with pytest.raises(KeyError):
+        t[Sloth()] = None
+    with pytest.raises(ValueError):
+        t[Sloth()] = 7
+
+
 def test_team_shallow_copy():
     t1 = Team([Fish(), Sloth(), None, Fish(), Ant()])
     t2 = copy(t1)
